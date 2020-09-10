@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from json import JSONDecodeError
 from typing import Any, Dict, Optional
-
+import html as html_lib
 from . import utils
 from .constants import FB_BASE_URL, FB_MOBILE_BASE_URL
 from .fb_types import RawPost, Options, Post, RequestFunction
@@ -279,17 +279,28 @@ class PostExtractor:
     def extract_photo_link(self) -> PartialPost:
         match = self.photo_link.search(self.element.html)
         if not match:
-            return None
-
-        url = utils.urljoin(FB_MOBILE_BASE_URL, match.groups()[0])
-
-        response = self.request(url)
-        html = response.text
-        match = self.image_regex.search(html)
-        if match:
-            return {
-                'image': match.groups()[0].replace("&amp;", "&"),
-            }
+            url = "https://m.facebook.com/photo.php?fbid="+self.data_ft['photo_id']
+            response = self.request(url)
+            html = response.text
+            match = re.compile("(?<=photo-stage marea).*?(?=/>)").search(html)
+            if match:
+                match = re.compile('(?<=data-store=").*?(?=")').search(match[0])
+                try:
+                    if match:
+                        return {
+                            'image': json.loads(html_lib.unescape(match[0]))['imgsrc'],
+                        }
+                except Exception as e:
+                    return None
+        else:
+            url = utils.urljoin(FB_MOBILE_BASE_URL, match.groups()[0])
+            response = self.request(url)
+            html = response.text
+            match = self.image_regex.search(html)
+            if match:
+                return {
+                    'image': match.groups()[0].replace("&amp;", "&"),
+                }
         return None
 
     def extract_reactions(self) -> PartialPost:
